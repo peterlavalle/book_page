@@ -1,54 +1,99 @@
+import contextlib
 import csv
+import shutil
 from pathlib import Path
 
-from book_page.book import Book, normalize_cell
+from book_page.book import Book, Page
 
 
 class CSVBook(Book):
-    def __init__(self, data: Path | list[Path]):
+    @classmethod
+    def copy(cls, src: Path | list[Path], out: Path):
+        src = csv_files(src)
 
-        # get it to a list
-        if isinstance(data, Path):
-            data = sorted(
-                list(data.glob("*.csv")) + list(data.glob("*.tsv")),
-                key=lambda file: file.stem.lower(),
-            )
+        for s in src:
+            shutil.copy2(s, out / s.name)
 
-        # compute dupes
-        collisions = sorted(
-            [
-                page
-                for page in data
-                if len(
-                    [them for them in data if them.stem.lower() == page.stem.lower()]
-                )
-                != 1
-            ],
-            key=lambda file: file.name.lower(),
-        )
-        # raise error if there are dupes
-        if collisions:
-            raise ValueError(
-                f"the following csv files have name collisions\n    {
-                    '\n    '.join(
-                        [
-                            (file.stem.lower() + '\n        ' + str(file))
-                            for file in collisions
-                        ]
-                    )
-                }"
-            )
+        return CSVBook([out / s.name for s in src])
 
-        self._page_files = {page.stem.lower(): page for page in data}
+    def __init__(self, path: Path | list[Path]):
 
-    def __contains__(self, name):
-        assert isinstance(name, str)
-        return name in self._page_files
+        path = csv_files(path)
 
+        self._page_files = {page.stem.lower(): page for page in path}
+        self._page_cache = {}
+
+    def keys(self):
+        return self._page_files.keys()
+
+    @contextlib.contextmanager
     def __getitem__(self, name):
+        if name in self._page_cache:
+            raise RuntimeError(f"only one copy of a page can be open at once {name=}")
 
         file = self._page_files[name]
-        for line in csv.reader(
-            file.open(), delimiter="\t" if file.name.endswith(".tsv") else ","
-        ):
-            yield [normalize_cell(cell) for cell in line]
+
+        self._page_cache[name] = [
+            line
+            for line in csv.reader(
+                file.open(), delimiter="\t" if file.name.endswith(".tsv") else ","
+            )
+        ]
+
+        class CSVPage(Page):
+            def cell_get(self, r: int, c: int):
+                return self._page[r][c]
+
+            def cell_set(self, r: int, c: int, v: any):
+                self._page[r][c] = v
+
+            def get_rows(self) -> int:
+                return len(self._page)
+
+            def get_columns(self) -> int:
+                return max([len(row) for row in self._page])
+
+        page = CSVPage(self._page_cache[name])
+        yield page
+        if page._changed:
+            with file.open("w") as stream:
+                csv.writer(
+                    stream, delimiter="\t" if file.name.endswith(".tsv") else ","
+                ).writerows(self._page_cache[name])
+        self._page_cache.pop(name)
+
+
+def csv_files(path: Path | list[Path]):
+    # get it to a list
+    if isinstance(path, Path):
+        if path.is_file():
+            raise RuntimeError(f"need a dir or list of files, but, got a file {path=}")
+        path = sorted(
+            list(path.glob("*.csv")) + list(path.glob("*.tsv")),
+            key=lambda file: file.stem.lower(),
+        )
+
+    # compute dupes
+    collisions = sorted(
+        [
+            page
+            for page in path
+            if len([them for them in path if them.stem.lower() == page.stem.lower()])
+            != 1
+        ],
+        key=lambda file: file.name.lower(),
+    )
+    # raise error if there are dupes
+    if collisions:
+        raise ValueError(
+            f"the following csv files have name collisions\n    {
+                '\n    '.join(
+                    [
+                        (file.stem.lower() + '\n        ' + str(file))
+                        for file in collisions
+                    ]
+                )
+            }"
+        )
+
+    return path
