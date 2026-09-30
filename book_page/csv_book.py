@@ -8,15 +8,18 @@ from book_page.book import Book, Page
 
 class CSVBook(Book):
     @classmethod
-    def copy(cls, src: Path | list[Path], out: Path):
+    def copy(cls, src: str | Path | list[Path], out: str | Path):
         src = csv_files(src)
+
+        if isinstance(out, str):
+            out = Path(out)
 
         for s in src:
             shutil.copy2(s, out / s.name)
 
         return CSVBook([out / s.name for s in src])
 
-    def __init__(self, path: Path | list[Path]):
+    def __init__(self, path: str | Path | list[Path]):
 
         path = csv_files(path)
 
@@ -63,7 +66,10 @@ class CSVBook(Book):
         self._page_cache.pop(name)
 
 
-def csv_files(path: Path | list[Path]):
+def csv_files(path: str | Path | list[Path]):
+    if isinstance(path, str):
+        path = Path(path)
+
     # get it to a list
     if isinstance(path, Path):
         if path.is_file():

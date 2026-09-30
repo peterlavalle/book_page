@@ -9,7 +9,11 @@ from .book import Book, Page
 
 class XLSXBook(Book):
     @classmethod
-    def copy(cls, src: Path, out: Path):
+    def copy(cls, src: str | Path, out: str | Path):
+        if isinstance(src, str):
+            src = Path(src)
+        if isinstance(out, str):
+            out = Path(out)
         if not src.is_file():
             raise RuntimeError(f"xlsx file not found {src}")
 
@@ -20,7 +24,9 @@ class XLSXBook(Book):
 
         return XLSXBook(out, False)
 
-    def __init__(self, file: Path, read_only=True):
+    def __init__(self, file: str | Path, read_only=True):
+        if isinstance(file, str):
+            file = Path(file)
         if not file.is_file():
             raise RuntimeError(f"xlsx file not found {file}")
         self._file = file

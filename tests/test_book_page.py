@@ -46,9 +46,13 @@ def test_csv_name_collision():
         (XLSXBook, data / "data.xlsx"),
     ],
 )
-def test_read_data(kind, path):
+@pytest.mark.parametrize(
+    "to_str",
+    [False, True],
+)
+def test_read_data(kind, path, to_str: bool):
 
-    book = kind(path)
+    book = kind(str(path) if to_str else path)
 
     assert "data_3x4" in book
     assert "data_3x6" in book
@@ -67,15 +71,32 @@ def test_read_data(kind, path):
         (XLSXBook, data / "data.xlsx"),
     ],
 )
-def test_copy_book(kind, path, tmp_path: Path):
-    book = kind.copy(path, tmp_path)
+@pytest.mark.parametrize(
+    "src_str",
+    [False, True],
+)
+@pytest.mark.parametrize(
+    "out_str",
+    [False, True],
+)
+@pytest.mark.parametrize(
+    "tmp_str",
+    [False, True],
+)
+def test_copy_book(
+    src_str: bool, out_str: bool, tmp_str: bool, kind, path, tmp_path: Path
+):
+    book = kind.copy(
+        str(path) if src_str else path, str(tmp_path) if out_str else tmp_path
+    )
 
     for page in book:
         for r in range(page.rows):
             for c in range(page.columns):
                 page[r, c].value = f"edit[{r},{c}]{page[r, c].value}"
 
-    book = kind((tmp_path / path.name) if path.is_file() else tmp_path)
+    out_path = (tmp_path / path.name) if path.is_file() else tmp_path
+    book = kind(str(out_path) if tmp_str else out_path)
 
     assert "data_3x4" in book
     assert "data_3x6" in book
