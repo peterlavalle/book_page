@@ -10,7 +10,7 @@ Book = CSVBook | XLSXBook
 
 def book_open(src: str | Path | list[Path]) -> Book:
     if isinstance(src, str):
-        src = Path(str)
+        src = Path(src)
 
     if isinstance(src, Path) and src.name.endswith(".xlsx"):
         return XLSXBook(src)
@@ -20,7 +20,7 @@ def book_open(src: str | Path | list[Path]) -> Book:
 
 def book_copy(src: str | Path | list[Path], out: str | Path) -> Book:
     if isinstance(src, str):
-        src = Path(str)
+        src = Path(src)
 
     if isinstance(src, Path) and src.name.endswith(".xlsx"):
         return XLSXBook.copy(src, out)
