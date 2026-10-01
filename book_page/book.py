@@ -3,7 +3,8 @@ from abc import abstractmethod
 
 def normalize_cell(cell):
     if cell is not None:
-        cell = str(cell)
+        if isinstance(cell, str):
+            cell = cell.strip()
         if cell:
             return cell
 
