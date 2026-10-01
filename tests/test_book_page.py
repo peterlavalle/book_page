@@ -3,7 +3,7 @@ from pathlib import Path
 
 import pytest
 
-from book_page import CSVBook, XLSXBook
+from book_page import CSVBook, XLSXBook, Book, book_open, book_copy
 
 data = Path(__file__).parent / "data" / __name__
 
@@ -50,18 +50,33 @@ def test_csv_name_collision():
     "to_str",
     [False, True],
 )
-def test_read_data(kind, path, to_str: bool):
+@pytest.mark.parametrize(
+    "generic",
+    [False, True],
+)
+@pytest.mark.parametrize(
+    "name, data",
+    [
+        ("data_3x4", data_3x4),
+        ("data_3x6", data_3x6),
+    ],
+)
+def test_read_data(kind, path, to_str: bool, generic: bool, name, data):
 
-    book = kind(str(path) if to_str else path)
+    # arrange
+    book: Book
 
-    assert "data_3x4" in book
-    assert "data_3x6" in book
+    # act
+    if generic:
+        book = book_open(str(path) if to_str else path)
+    else:
+        book = kind(str(path) if to_str else path)
 
-    with book["data_3x4"] as page:
-        page_check(page, data_3x4)
-
-    with book["data_3x6"] as page:
-        page_check(page, data_3x6)
+    # assert
+    assert isinstance(book, kind)
+    assert name in book
+    with book[name] as page:
+        page_check(page, data)
 
 
 @pytest.mark.parametrize(
@@ -80,43 +95,72 @@ def test_read_data(kind, path, to_str: bool):
     [False, True],
 )
 @pytest.mark.parametrize(
-    "tmp_str",
+    "end_str",
     [False, True],
 )
+@pytest.mark.parametrize(
+    "generic_copy",
+    [False, True],
+)
+@pytest.mark.parametrize(
+    "generic_open",
+    [False, True],
+)
+@pytest.mark.parametrize(
+    "name, data",
+    [
+        ("data_3x4", data_3x4),
+        ("data_3x6", data_3x6),
+    ],
+)
 def test_copy_book(
-    src_str: bool, out_str: bool, tmp_str: bool, kind, path, tmp_path: Path
+    src_str: bool,
+    out_str: bool,
+    end_str: bool,
+    kind,
+    path,
+    tmp_path: Path,
+    generic_copy: bool,
+    generic_open: bool,
+    name,
+    data,
 ):
-    book = kind.copy(
-        str(path) if src_str else path, str(tmp_path) if out_str else tmp_path
-    )
+    # arrange
+    copy_book: Book
+    changed_data = [
+        [f"edit[{r},{c}]{data[r][c]}" for c in range(len(data[0]))]
+        for r in range(len(data))
+    ]
+    src = str(path) if src_str else path
+    out = str(tmp_path) if out_str else tmp_path
+    end: str | Path = (tmp_path / path.name) if path.is_file() else tmp_path
+    if end_str:
+        end = str(end)
 
-    for page in book:
+    # act
+    if generic_copy:
+        copy_book = book_copy(src, out)
+    else:
+        copy_book = kind.copy(src, out)
+    for page in copy_book:
         for r in range(page.rows):
             for c in range(page.columns):
                 page[r, c].value = f"edit[{r},{c}]{page[r, c].value}"
+    changed_book: Book
+    if generic_open:
+        changed_book = book_open(end)
+    else:
+        changed_book = kind(end)
 
-    out_path = (tmp_path / path.name) if path.is_file() else tmp_path
-    book = kind(str(out_path) if tmp_str else out_path)
+    assert name in copy_book
+    assert name in changed_book
+    assert isinstance(copy_book, kind)
+    assert isinstance(changed_book, kind)
 
-    assert "data_3x4" in book
-    assert "data_3x6" in book
-
-    with book["data_3x4"] as page:
+    with changed_book[name] as page:
         page_check(
             page,
-            [
-                [f"edit[{r},{c}]{data_3x4[r][c]}" for c in range(len(data_3x4[0]))]
-                for r in range(len(data_3x4))
-            ],
-        )
-
-    with book["data_3x6"] as page:
-        page_check(
-            page,
-            [
-                [f"edit[{r},{c}]{data_3x6[r][c]}" for c in range(len(data_3x6[0]))]
-                for r in range(len(data_3x6))
-            ],
+            changed_data,
         )
 
 
