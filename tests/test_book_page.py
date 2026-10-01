@@ -76,7 +76,7 @@ def test_read_data(kind, path, to_str: bool, generic: bool, name, data):
     assert isinstance(book, kind)
     assert name in book
     with book[name] as page:
-        page_check(page, data)
+        page_check(page, name, data)
 
 
 @pytest.mark.parametrize(
@@ -158,13 +158,11 @@ def test_copy_book(
     assert isinstance(changed_book, kind)
 
     with changed_book[name] as page:
-        page_check(
-            page,
-            changed_data,
-        )
+        page_check(page, name, changed_data)
 
 
-def page_check(page, data):
+def page_check(page, name, data):
+    assert page.name == name
     assert page.rows == len(data)
     assert page.columns == len(data[0])
     e = data[0][0]
@@ -204,6 +202,17 @@ def test_xlsx_multi_page():
         "only one page can be open at a time self._open='data_3x4' name='data_3x6'"
         == str(error.value)
     )
+
+
+def test_xlsx_name_cap():
+    book = XLSXBook(data / "data.xlsx")
+    long_name = "name which exceeds 31 characters"
+    with (
+        pytest.raises(RuntimeError) as error,
+        book[long_name] as page,
+    ):
+        raise RuntimeError(f"{long_name=} should have failed {page.name=}")
+    assert "excel limits you to 31 character page names" == str(error.value)
 
 
 def test_csv_multi_page():

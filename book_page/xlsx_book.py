@@ -39,6 +39,9 @@ class XLSXBook(Book):
     @contextlib.contextmanager
     def __getitem__(self, name):
 
+        if len(name) > 31:
+            raise RuntimeError("excel limits you to 31 character page names")
+
         if self._open is not None:
             raise RuntimeError(
                 f"only one page can be open at a time {self._open=} {name=}"
@@ -58,7 +61,7 @@ class XLSXBook(Book):
                 return self._page.max_column
 
         self._open = name
-        page = XLSXPage(self._book[name])
+        page = XLSXPage(name, self._book[name])
         yield page
         if page._changed:
             self._book.save(self._file)

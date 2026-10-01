@@ -25,7 +25,8 @@ class Book:
 
 
 class Page:
-    def __init__(self, page: object):
+    def __init__(self, name: str, page: object):
+        self._name = name
         self._page = page
         self._changed = False
 
@@ -40,6 +41,10 @@ class Page:
 
     @abstractmethod
     def get_columns(self) -> int: ...
+
+    @property
+    def name(self) -> str:
+        return self._name
 
     @property
     def rows(self) -> int:

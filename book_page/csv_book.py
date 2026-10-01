@@ -56,7 +56,7 @@ class CSVBook(Book):
             def get_columns(self) -> int:
                 return max([len(row) for row in self._page])
 
-        page = CSVPage(self._page_cache[name])
+        page = CSVPage(name, self._page_cache[name])
         yield page
         if page._changed:
             with file.open("w") as stream:
