@@ -1,12 +1,14 @@
 from abc import abstractmethod
+from functools import cached_property
+from pathlib import Path
 
 
 def normalize_cell(cell):
-    if cell is not None:
-        if isinstance(cell, str):
-            cell = cell.strip()
-        if cell:
-            return cell
+    # if cell is not None:
+    #     if isinstance(cell, str):
+    #         cell = cell.strip()
+    #     if cell:
+    return cell
 
 
 class Book:
@@ -18,6 +20,12 @@ class Book:
 
     @abstractmethod
     def keys(self): ...
+
+    @abstractmethod
+    def stream_rows(self, want: None | list[str] = None): ...
+
+    @abstractmethod
+    def stream_copy(self, into: Path): ...
 
     def __iter__(self):
         for name in self.keys():
@@ -43,15 +51,15 @@ class Page:
     @abstractmethod
     def get_columns(self) -> int: ...
 
-    @property
+    @cached_property
     def name(self) -> str:
         return self._name
 
-    @property
+    @cached_property
     def rows(self) -> int:
         return self.get_rows()
 
-    @property
+    @cached_property
     def columns(self) -> int:
         return self.get_columns()
 

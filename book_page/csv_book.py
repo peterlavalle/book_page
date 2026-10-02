@@ -20,10 +20,7 @@ class CSVBook(Book):
         return CSVBook([out / s.name for s in src])
 
     def __init__(self, path: str | Path | list[Path]):
-
-        path = csv_files(path)
-
-        self._page_files = {page.stem.lower(): page for page in path}
+        self._page_files = {page.stem.lower(): page for page in csv_files(path)}
         self._page_cache = {}
 
     def keys(self):
@@ -64,6 +61,46 @@ class CSVBook(Book):
                     stream, delimiter="\t" if file.name.endswith(".tsv") else ","
                 ).writerows(self._page_cache[name])
         self._page_cache.pop(name)
+
+    def stream_rows(self, want: None | list[str] = None):
+        if want:
+            missing = [i for i in want if i not in self._page_files]
+            if missing:
+                raise ValueError(f"{missing=}")
+        for name, file in self._page_files.items():
+            if want is None or name in want:
+                with file.open() as source:
+                    reader = csv.reader(
+                        source,
+                        delimiter="\t" if file.name.endswith(".tsv") else ",",
+                    )
+                    for row in reader:
+                        yield (name, row)
+
+    def stream_copy(self, into: Path):
+        if into.is_file():
+            raise RuntimeError(f"can't write csvs to {into} because it's a file")
+
+        open_file = None
+        open_name = None
+        writer = None
+
+        for name, row in self.stream_rows():
+            # if the page name has changed -> open a new stream
+            if open_name != name:
+                if open_file:
+                    open_file.close()
+                into.mkdir(parents=True, exist_ok=True)
+                open_name = name
+                open_file = (into / self._page_files[name].name).open("w")
+                writer = csv.writer(
+                    open_file,
+                    delimiter="\t" if open_file.name.endswith(".tsv") else ",",
+                )
+            yield (name, row)
+            writer.writerow(row)
+        if open_file:
+            open_file.close()
 
 
 def csv_files(path: str | Path | list[Path]):

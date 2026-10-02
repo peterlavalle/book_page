@@ -3,7 +3,7 @@ from pathlib import Path
 
 import pytest
 
-from book_page import CSVBook, XLSXBook, Book, book_open, book_copy
+from book_page import Book, CSVBook, XLSXBook, book_copy, book_open
 
 data = Path(__file__).parent / "data" / __name__
 
@@ -161,6 +161,55 @@ def test_copy_book(
         page_check(page, name, changed_data)
 
 
+def test_stream_map(tmp_path: Path):
+    book = CSVBook([data / "data_3x4.csv", data / "data_3x6.tsv"])
+
+    # rewrite each row
+    for page_name, row in book.stream_copy(tmp_path):
+        for i in range(len(row)):
+            row[i] = page_name + ">" + row[i]
+
+    # examine the result
+    book = CSVBook([tmp_path / "data_3x4.csv", tmp_path / "data_3x6.tsv"])
+
+    with book["data_3x4"] as page:
+        page_check(
+            page,
+            "data_3x4",
+            [[("data_3x4>" + cell) for cell in row] for row in data_3x4],
+        )
+    with book["data_3x6"] as page:
+        page_check(
+            page,
+            "data_3x6",
+            [[("data_3x6>" + cell) for cell in row] for row in data_3x6],
+        )
+
+
+@pytest.mark.parametrize(
+    "kind, path",
+    [
+        (CSVBook, [data / "data_3x4.csv", data / "data_3x6.tsv"]),
+        (XLSXBook, data / "data.xlsx"),
+    ],
+)
+def test_stream_rows(kind, path):
+    book = kind(path)
+
+    copy = {}
+
+    # scan each row
+    for name, row in book.stream_rows():
+        if name not in copy:
+            copy[name] = []
+        copy[name].append(row.copy())
+
+    assert copy == {
+        "data_3x4": data_3x4,
+        "data_3x6": data_3x6,
+    }
+
+
 def page_check(page, name, data):
     assert page.name == name
     assert page.rows == len(data)
@@ -170,7 +219,7 @@ def page_check(page, name, data):
     assert e == o, f"mismatch\n\t{e=}\n\t{o=}"
     for r in range(page.rows):
         for c in range(page.columns):
-            assert page[r, c].value == data[r][c]
+            assert str(page[r, c].value) == data[r][c]
 
 
 def test_non_file(tmp_path: Path):
