@@ -1,6 +1,7 @@
 import contextlib
 import shutil
 from pathlib import Path
+from collections.abc import Generator as gen
 
 import openpyxl
 
@@ -31,24 +32,35 @@ class XLSXBook(Book):
             raise RuntimeError(f"xlsx file not found {file}")
         self._file = file
         self._book = openpyxl.load_workbook(file, read_only=read_only)
-        self._open = None
 
     def keys(self):
         return [page.title for page in self._book.worksheets]
 
-    def stream_copy(self, into: Path):
-        raise NotImplementedError()
+    def stream_copy(self, into: str | Path) -> gen[tuple[str, int, list[str]]]:
+        if not isinstance(into, Path):
+            into = Path(into)
+
+        if not into.name.endswith(".xlsx"):
+            into = into / self._file.name
+
+        shutil.copy2(self._file, into)
+        pyxl = openpyxl.load_workbook(into)
+
+        for name in pyxl.sheetnames:
+            page = pyxl[name]
+
+            for r in range(page.max_row):
+                data = [page.cell(r + 1, c + 1).value for c in range(page.max_column)]
+                yield page, r, data
+                for c, val in enumerate(data):
+                    page.cell(r + 1, c + 1).value = val
+        pyxl.save(into)
 
     @contextlib.contextmanager
     def __getitem__(self, name):
 
         if len(name) > 31:
             raise RuntimeError("excel limits you to 31 character page names")
-
-        if self._open is not None:
-            raise RuntimeError(
-                f"only one page can be open at a time {self._open=} {name=}"
-            )
 
         class XLSXPage(Page):
             def cell_get(self, r: int, c: int):
@@ -57,7 +69,7 @@ class XLSXBook(Book):
             def cell_set(self, r: int, c: int, v: any):
                 self._page.cell(r + 1, c + 1).value = v
 
-            def stream_rows(self):
+            def stream_rows(self) -> gen[tuple[int, list[str]]]:
                 for row in range(self._page.max_row):
                     yield (
                         row,
@@ -67,9 +79,4 @@ class XLSXBook(Book):
                         ],
                     )
 
-        self._open = name
-        page = XLSXPage(name, self._book[name])
-        yield page
-        if page._changed:
-            self._book.save(self._file)
-        self._open = None
+        yield XLSXPage(name, self._book[name])

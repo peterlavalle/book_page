@@ -27,7 +27,6 @@ class Page(ABC):
     def __init__(self, name: str, page: object):
         self._name = name
         self._page = page
-        self._changed = False
 
     @abstractmethod
     def stream_rows(self) -> gen[tuple[int, list[str]]]: ...

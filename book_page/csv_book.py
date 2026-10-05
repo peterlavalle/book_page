@@ -56,7 +56,7 @@ class CSVBook(Book):
         assert isinstance(self._page_files[name], Path)
         yield CSVPage(name, self._page_files[name])
 
-    def stream_copy(self, into: str | Path):
+    def stream_copy(self, into: str | Path) -> gen[tuple[str, int, list[str]]]:
         if not isinstance(into, Path):
             into = Path(into)
 

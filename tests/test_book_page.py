@@ -156,8 +156,6 @@ def test_copy_book(
     assert isinstance(source, kind)
     assert isinstance(target, kind)
 
-
-
     with target[name] as page:
         copy = []
         for row, cell in page.stream_rows():
@@ -229,20 +227,6 @@ def test_csv_file():
     with pytest.raises(RuntimeError) as error:
         CSVBook(path)
     assert f"need a dir or list of files, but, got a file {path=}" == str(error.value)
-
-
-def test_xlsx_multi_page():
-    book = XLSXBook(data / "data.xlsx")
-    with (
-        pytest.raises(RuntimeError) as error,
-        book["data_3x4"] as page1,
-        book["data_3x6"] as page2,
-    ):
-        pytest.fail("shouldn't work" + page1 + page2)
-    assert (
-        "only one page can be open at a time self._open='data_3x4' name='data_3x6'"
-        == str(error.value)
-    )
 
 
 def test_xlsx_name_cap():
