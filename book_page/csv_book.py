@@ -2,6 +2,8 @@ import contextlib
 import csv
 import shutil
 from pathlib import Path
+from collections.abc import Generator as gen
+from pathlib import Path
 
 from book_page.book import Book, Page
 
@@ -28,55 +30,47 @@ class CSVBook(Book):
 
     @contextlib.contextmanager
     def __getitem__(self, name):
-        if name in self._page_cache:
-            raise RuntimeError(f"only one copy of a page can be open at once {name=}")
-
-        file = self._page_files[name]
-
-        self._page_cache[name] = [
-            line
-            for line in csv.reader(
-                file.open(), delimiter="\t" if file.name.endswith(".tsv") else ","
-            )
-        ]
 
         class CSVPage(Page):
+            def stream_rows(self) -> gen[tuple[int, list[str]]]:
+                assert isinstance(self._page, Path)
+                with self._page.open() as file:
+                    row = 0
+                    for line in csv.reader(
+                        file,
+                        delimiter="\t" if file.name.endswith(".tsv") else ",",
+                    ):
+                        # normalize and yield the row
+
+                        yield (
+                            row,
+                            [
+                                cell if cell else None
+                                for cell in [
+                                    cell.strip() if isinstance(cell, str) else cell
+                                    for cell in line
+                                ]
+                            ],
+                        )
+
             def cell_get(self, r: int, c: int):
+                raise NotImplementedError("API changed - this will be removed")
                 return self._page[r][c]
 
             def cell_set(self, r: int, c: int, v: any):
+                raise NotImplementedError("API changed - this will be removed")
                 self._page[r][c] = v
 
             def get_rows(self) -> int:
+                raise NotImplementedError("API changed - this will be removed")
                 return len(self._page)
 
             def get_columns(self) -> int:
+                raise NotImplementedError("API changed - this will be removed")
                 return max([len(row) for row in self._page])
 
-        page = CSVPage(name, self._page_cache[name])
-        yield page
-        if page._changed:
-            with file.open("w") as stream:
-                csv.writer(
-                    stream, delimiter="\t" if file.name.endswith(".tsv") else ","
-                ).writerows(self._page_cache[name])
-        self._page_cache.pop(name)
-
-    def stream_rows(self, want: None | list[str] = None):
-        raise NotImplementedError('move this to Page')
-        if want:
-            missing = [i for i in want if i not in self._page_files]
-            if missing:
-                raise ValueError(f"{missing=}")
-        for name, file in self._page_files.items():
-            if want is None or name in want:
-                with file.open() as source:
-                    reader = csv.reader(
-                        source,
-                        delimiter="\t" if file.name.endswith(".tsv") else ",",
-                    )
-                    for row in reader:
-                        yield (name, row)
+        assert isinstance(self._page_files[name], Path)
+        yield CSVPage(name, self._page_files[name])
 
     def stream_copy(self, into: Path):
         if into.is_file():

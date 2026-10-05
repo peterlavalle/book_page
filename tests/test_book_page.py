@@ -161,6 +161,17 @@ def test_copy_book(
         page_check(page, name, changed_data)
 
 
+def test_stream_csv_rows():
+    book = CSVBook([data / "data_3x4.csv", data / "data_3x6.tsv"])
+
+    copy = []
+    with book["data_3x4"] as page:
+        for _, row in page.stream_rows():
+            copy.append(row.copy())
+
+    assert copy == data_3x4
+
+
 def test_stream_map(tmp_path: Path):
     book = CSVBook([data / "data_3x4.csv", data / "data_3x6.tsv"])
 
