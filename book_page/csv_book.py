@@ -63,6 +63,7 @@ class CSVBook(Book):
         self._page_cache.pop(name)
 
     def stream_rows(self, want: None | list[str] = None):
+        raise NotImplementedError('move this to Page')
         if want:
             missing = [i for i in want if i not in self._page_files]
             if missing:

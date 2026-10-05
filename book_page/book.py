@@ -1,4 +1,5 @@
-from abc import abstractmethod
+from abc import ABC, abstractmethod
+from collections.abc import Generator as gen
 from functools import cached_property
 from pathlib import Path
 
@@ -11,7 +12,7 @@ def normalize_cell(cell):
     return cell
 
 
-class Book:
+class Book(ABC):
     def __contains__(self, name):
         return name in self.keys()
 
@@ -22,10 +23,7 @@ class Book:
     def keys(self): ...
 
     @abstractmethod
-    def stream_rows(self, want: None | list[str] = None): ...
-
-    @abstractmethod
-    def stream_copy(self, into: Path): ...
+    def stream_copy(self, into: Path) -> gen[tuple[str, int, list[str]]]: ...
 
     def __iter__(self):
         for name in self.keys():
@@ -33,11 +31,14 @@ class Book:
                 yield page
 
 
-class Page:
+class Page(ABC):
     def __init__(self, name: str, page: object):
         self._name = name
         self._page = page
         self._changed = False
+
+    @abstractmethod
+    def stream_rows(self) -> gen[tuple[int, list[str]]]: ...
 
     @abstractmethod
     def cell_get(self, r: int, c: int): ...
