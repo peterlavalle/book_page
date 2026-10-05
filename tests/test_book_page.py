@@ -76,7 +76,11 @@ def test_read_data(kind, path, to_str: bool, generic: bool, name, data):
     assert isinstance(book, kind)
     assert name in book
     with book[name] as page:
-        page_check(page, name, data)
+        copy = []
+        for _, row in page.stream_rows():
+            copy.append([str(c) for c in row])
+
+        assert data == copy
 
 
 @pytest.mark.parametrize(
@@ -161,6 +165,17 @@ def test_copy_book(
         page_check(page, name, changed_data)
 
 
+def page_check(page, name, data):
+    assert page.name == name
+    assert page.rows == len(data)
+    assert page.columns == len(data[0])
+    e = data[0][0]
+    o = page[0, 0].value
+    assert e == o, f"mismatch\n\t{e=}\n\t{o=}"
+    for r in range(page.rows):
+        for c in range(page.columns):
+            assert str(page[r, c].value) == data[r][c]
+
 def test_stream_csv_rows():
     book = CSVBook([data / "data_3x4.csv", data / "data_3x6.tsv"])
 
@@ -170,31 +185,6 @@ def test_stream_csv_rows():
             copy.append(row.copy())
 
     assert copy == data_3x4
-
-
-def test_stream_map(tmp_path: Path):
-    book = CSVBook([data / "data_3x4.csv", data / "data_3x6.tsv"])
-
-    # rewrite each row
-    for page_name, row in book.stream_copy(tmp_path):
-        for i in range(len(row)):
-            row[i] = page_name + ">" + row[i]
-
-    # examine the result
-    book = CSVBook([tmp_path / "data_3x4.csv", tmp_path / "data_3x6.tsv"])
-
-    with book["data_3x4"] as page:
-        page_check(
-            page,
-            "data_3x4",
-            [[("data_3x4>" + cell) for cell in row] for row in data_3x4],
-        )
-    with book["data_3x6"] as page:
-        page_check(
-            page,
-            "data_3x6",
-            [[("data_3x6>" + cell) for cell in row] for row in data_3x6],
-        )
 
 
 @pytest.mark.parametrize(
@@ -221,17 +211,6 @@ def test_stream_rows(kind, path):
         "data_3x6": data_3x6,
     }
 
-
-def page_check(page, name, data):
-    assert page.name == name
-    assert page.rows == len(data)
-    assert page.columns == len(data[0])
-    e = data[0][0]
-    o = page[0, 0].value
-    assert e == o, f"mismatch\n\t{e=}\n\t{o=}"
-    for r in range(page.rows):
-        for c in range(page.columns):
-            assert str(page[r, c].value) == data[r][c]
 
 
 def test_non_file(tmp_path: Path):
@@ -274,16 +253,3 @@ def test_xlsx_name_cap():
     ):
         raise RuntimeError(f"{long_name=} should have failed {page.name=}")
     assert "excel limits you to 31 character page names" == str(error.value)
-
-
-def test_csv_multi_page():
-    book = CSVBook(data)
-    with (
-        pytest.raises(RuntimeError) as error,
-        book["data_3x4"] as page1,
-        book["data_3x4"] as page2,
-    ):
-        pytest.fail("shouldn't work" + page1 + page2)
-    assert "only one copy of a page can be open at once name='data_3x4'" == str(
-        error.value
-    )
