@@ -1,7 +1,5 @@
 import contextlib
 import csv
-import shutil
-from pathlib import Path
 from collections.abc import Generator as gen
 from pathlib import Path
 
@@ -9,18 +7,6 @@ from book_page.book import Book, Page
 
 
 class CSVBook(Book):
-    @classmethod
-    def copy(cls, src: str | Path | list[Path], out: str | Path):
-        src = csv_files(src)
-
-        if isinstance(out, str):
-            out = Path(out)
-
-        for s in src:
-            shutil.copy2(s, out / s.name)
-
-        return CSVBook([out / s.name for s in src])
-
     def __init__(self, path: str | Path | list[Path]):
         self._page_files = {page.stem.lower(): page for page in csv_files(path)}
 

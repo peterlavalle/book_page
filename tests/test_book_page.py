@@ -187,6 +187,18 @@ def test_stream_csv_rows():
     assert copy == data_3x4
 
 
+def test_csv_stream_wont_overwrite_file(tmp_path: Path):
+    book = CSVBook([data / "data_3x4.csv", data / "data_3x6.tsv"])
+    into = tmp_path / "foo"
+    into.write_text("foobar")
+
+    with pytest.raises(RuntimeError) as error:
+        for p, r, v in book.stream_copy(into):
+            pass
+
+    assert str(error.value) == f"can't write csvs to {into} because it's a file"
+
+
 @pytest.mark.parametrize(
     "kind, path",
     [
@@ -217,7 +229,10 @@ def test_non_file(tmp_path: Path):
         XLSXBook(tmp_path / "foo.xlsx")
     assert f"xlsx file not found {tmp_path}/foo.xlsx" == str(error.value)
     with pytest.raises(RuntimeError) as error:
-        XLSXBook.copy(tmp_path / "bar.xlsx", tmp_path / "foo.xlsx")
+        for p, r, v in XLSXBook(tmp_path / "bar.xlsx").stream_copy(
+            tmp_path / "foo.xlsx"
+        ):
+            pass
     assert f"xlsx file not found {tmp_path}/bar.xlsx" == str(error.value)
 
 
