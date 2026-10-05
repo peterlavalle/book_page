@@ -57,17 +57,14 @@ class XLSXBook(Book):
             def cell_set(self, r: int, c: int, v: any):
                 self._page.cell(r + 1, c + 1).value = v
 
-            def get_rows(self) -> int:
-                return self._page.max_row
-
-            def get_columns(self) -> int:
-                return self._page.max_column
-
             def stream_rows(self):
-                for row in range(self.rows):
+                for row in range(self._page.max_row):
                     yield (
                         row,
-                        [self.cell_get(row, col) for col in range(self.columns)],
+                        [
+                            self.cell_get(row, col)
+                            for col in range(self._page.max_column)
+                        ],
                     )
 
         self._open = name

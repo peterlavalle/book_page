@@ -56,7 +56,10 @@ class CSVBook(Book):
         assert isinstance(self._page_files[name], Path)
         yield CSVPage(name, self._page_files[name])
 
-    def stream_copy(self, into: Path):
+    def stream_copy(self, into: str | Path):
+        if not isinstance(into, Path):
+            into = Path(into)
+
         if into.is_file():
             raise RuntimeError(f"can't write csvs to {into} because it's a file")
 
