@@ -4,14 +4,6 @@ from functools import cached_property
 from pathlib import Path
 
 
-def normalize_cell(cell):
-    # if cell is not None:
-    #     if isinstance(cell, str):
-    #         cell = cell.strip()
-    #     if cell:
-    return cell
-
-
 class Book(ABC):
     def __contains__(self, name):
         return name in self.keys()
@@ -40,50 +32,6 @@ class Page(ABC):
     @abstractmethod
     def stream_rows(self) -> gen[tuple[int, list[str]]]: ...
 
-    @abstractmethod
-    def cell_get(self, r: int, c: int): ...
-
-    @abstractmethod
-    def cell_set(self, r: int, c: int, v: any): ...
-
-    @abstractmethod
-    def get_rows(self) -> int: ...
-
-    @abstractmethod
-    def get_columns(self) -> int: ...
-
     @cached_property
     def name(self) -> str:
         return self._name
-
-    @cached_property
-    def rows(self) -> int:
-        return self.get_rows()
-
-    @cached_property
-    def columns(self) -> int:
-        return self.get_columns()
-
-    def __getitem__(self, rc: tuple[int, int]):
-        (r, c) = rc
-        assert 0 <= r < self.rows
-        assert 0 <= c < self.columns
-
-        return Cell(self, r, c)
-
-
-class Cell:
-    def __init__(self, page: Page, row: int, col: int):
-        self._page = page
-        self._row = row
-        self._col = col
-        self._got = {}
-
-    @property
-    def value(self):
-        return normalize_cell(self._page.cell_get(self._row, self._col))
-
-    @value.setter
-    def value(self, val):
-        self._page._changed = True
-        return self._page.cell_set(self._row, self._col, normalize_cell(val))

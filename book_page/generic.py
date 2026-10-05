@@ -18,19 +18,8 @@ def book_open(src: str | Path | list[Path]) -> Book:
         return CSVBook(src)
 
 
-def book_copy(src: str | Path | list[Path], out: str | Path) -> Book:
-    if isinstance(src, str):
-        src = Path(src)
-
-    if isinstance(src, Path) and src.name.endswith(".xlsx"):
-        return XLSXBook.copy(src, out)
-    else:
-        return CSVBook.copy(src, out)
-
-
 __all__ = [  # noqa: PLE0604
     Book,
     Page,
     book_open,
-    book_copy,
 ]

@@ -3,7 +3,7 @@ from pathlib import Path
 
 import pytest
 
-from book_page import Book, CSVBook, XLSXBook, book_copy, book_open
+from book_page import Book, CSVBook, XLSXBook, book_open
 
 data = Path(__file__).parent / "data" / __name__
 
@@ -103,10 +103,6 @@ def test_read_data(kind, path, to_str: bool, generic: bool, name, data):
     [False, True],
 )
 @pytest.mark.parametrize(
-    "generic_copy",
-    [False, True],
-)
-@pytest.mark.parametrize(
     "generic_open",
     [False, True],
 )
@@ -124,13 +120,12 @@ def test_copy_book(
     kind,
     path,
     tmp_path: Path,
-    generic_copy: bool,
     generic_open: bool,
     name,
     data,
 ):
     # arrange
-    copy_book: Book
+    source: Book
     changed_data = [
         [f"edit[{r},{c}]{data[r][c]}" for c in range(len(data[0]))]
         for r in range(len(data))
@@ -142,27 +137,33 @@ def test_copy_book(
         end = str(end)
 
     # act
-    if generic_copy:
-        copy_book = book_copy(src, out)
-    else:
-        copy_book = kind.copy(src, out)
-    for page in copy_book:
-        for r in range(page.rows):
-            for c in range(page.columns):
-                page[r, c].value = f"edit[{r},{c}]{page[r, c].value}"
-    changed_book: Book
+    source = kind(src)
+
+    for page, row, cells in source.stream_copy(out):
+        for col, val in enumerate(cells):
+            cells[col] = f"edit[{row},{col}]{val}"
+
+    # assert
+    target: Book
     if generic_open:
-        changed_book = book_open(end)
+        target = book_open(end)
     else:
-        changed_book = kind(end)
+        target = kind(end)
 
-    assert name in copy_book
-    assert name in changed_book
-    assert isinstance(copy_book, kind)
-    assert isinstance(changed_book, kind)
+    # assert
+    assert name in source
+    assert name in target
+    assert isinstance(source, kind)
+    assert isinstance(target, kind)
 
-    with changed_book[name] as page:
-        page_check(page, name, changed_data)
+
+
+    with target[name] as page:
+        copy = []
+        for row, cell in page.stream_rows():
+            assert len(copy) == row
+            copy.append(cell)
+        assert copy == changed_data
 
 
 def page_check(page, name, data):
@@ -175,6 +176,7 @@ def page_check(page, name, data):
     for r in range(page.rows):
         for c in range(page.columns):
             assert str(page[r, c].value) == data[r][c]
+
 
 def test_stream_csv_rows():
     book = CSVBook([data / "data_3x4.csv", data / "data_3x6.tsv"])
@@ -210,7 +212,6 @@ def test_stream_rows(kind, path):
         "data_3x4": data_3x4,
         "data_3x6": data_3x6,
     }
-
 
 
 def test_non_file(tmp_path: Path):
