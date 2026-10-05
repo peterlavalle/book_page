@@ -210,10 +210,11 @@ def test_stream_rows(kind, path):
     copy = {}
 
     # scan each row
-    for name, row in book.stream_rows():
-        if name not in copy:
-            copy[name] = []
-        copy[name].append(row.copy())
+    for page in book:
+        copy[page.name] = []
+        for idx, row in page.stream_rows():
+            assert idx == len(copy[page.name])
+            copy[page.name].append([str(c) for c in row])
 
     assert copy == {
         "data_3x4": data_3x4,

@@ -35,11 +35,10 @@ class CSVBook(Book):
             def stream_rows(self) -> gen[tuple[int, list[str]]]:
                 assert isinstance(self._page, Path)
                 with self._page.open() as file:
-                    row = 0
-                    for line in csv.reader(
+                    for row, line in enumerate(csv.reader(
                         file,
                         delimiter="\t" if file.name.endswith(".tsv") else ",",
-                    ):
+                    )):
                         # normalize and yield the row
 
                         yield (

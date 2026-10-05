@@ -36,6 +36,9 @@ class XLSXBook(Book):
     def keys(self):
         return [page.title for page in self._book.worksheets]
 
+    def stream_copy(self, into: Path):
+        raise NotImplementedError()
+
     @contextlib.contextmanager
     def __getitem__(self, name):
 
@@ -59,6 +62,13 @@ class XLSXBook(Book):
 
             def get_columns(self) -> int:
                 return self._page.max_column
+
+            def stream_rows(self):
+                for row in range(self.rows):
+                    yield (
+                        row,
+                        [self.cell_get(row, col) for col in range(self.columns)],
+                    )
 
         self._open = name
         page = XLSXPage(name, self._book[name])
