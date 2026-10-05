@@ -3,7 +3,7 @@ from pathlib import Path
 
 import pytest
 
-from book_page import CSVBook, XLSXBook, Book, book_open, book_copy
+from book_page import Book, CSVBook, XLSXBook, book_open
 
 data = Path(__file__).parent / "data" / __name__
 
@@ -76,7 +76,11 @@ def test_read_data(kind, path, to_str: bool, generic: bool, name, data):
     assert isinstance(book, kind)
     assert name in book
     with book[name] as page:
-        page_check(page, name, data)
+        copy = []
+        for _, row in page.stream_rows():
+            copy.append([str(c) for c in row])
+
+        assert data == copy
 
 
 @pytest.mark.parametrize(
@@ -99,10 +103,6 @@ def test_read_data(kind, path, to_str: bool, generic: bool, name, data):
     [False, True],
 )
 @pytest.mark.parametrize(
-    "generic_copy",
-    [False, True],
-)
-@pytest.mark.parametrize(
     "generic_open",
     [False, True],
 )
@@ -120,13 +120,12 @@ def test_copy_book(
     kind,
     path,
     tmp_path: Path,
-    generic_copy: bool,
     generic_open: bool,
     name,
     data,
 ):
     # arrange
-    copy_book: Book
+    source: Book
     changed_data = [
         [f"edit[{r},{c}]{data[r][c]}" for c in range(len(data[0]))]
         for r in range(len(data))
@@ -138,27 +137,31 @@ def test_copy_book(
         end = str(end)
 
     # act
-    if generic_copy:
-        copy_book = book_copy(src, out)
-    else:
-        copy_book = kind.copy(src, out)
-    for page in copy_book:
-        for r in range(page.rows):
-            for c in range(page.columns):
-                page[r, c].value = f"edit[{r},{c}]{page[r, c].value}"
-    changed_book: Book
+    source = kind(src)
+
+    for page, row, cells in source.stream_copy(out):
+        for col, val in enumerate(cells):
+            cells[col] = f"edit[{row},{col}]{val}"
+
+    # assert
+    target: Book
     if generic_open:
-        changed_book = book_open(end)
+        target = book_open(end)
     else:
-        changed_book = kind(end)
+        target = kind(end)
 
-    assert name in copy_book
-    assert name in changed_book
-    assert isinstance(copy_book, kind)
-    assert isinstance(changed_book, kind)
+    # assert
+    assert name in source
+    assert name in target
+    assert isinstance(source, kind)
+    assert isinstance(target, kind)
 
-    with changed_book[name] as page:
-        page_check(page, name, changed_data)
+    with target[name] as page:
+        copy = []
+        for row, cell in page.stream_rows():
+            assert len(copy) == row
+            copy.append(cell)
+        assert copy == changed_data
 
 
 def page_check(page, name, data):
@@ -170,7 +173,55 @@ def page_check(page, name, data):
     assert e == o, f"mismatch\n\t{e=}\n\t{o=}"
     for r in range(page.rows):
         for c in range(page.columns):
-            assert page[r, c].value == data[r][c]
+            assert str(page[r, c].value) == data[r][c]
+
+
+def test_stream_csv_rows():
+    book = CSVBook([data / "data_3x4.csv", data / "data_3x6.tsv"])
+
+    copy = []
+    with book["data_3x4"] as page:
+        for _, row in page.stream_rows():
+            copy.append(row.copy())
+
+    assert copy == data_3x4
+
+
+def test_csv_stream_wont_overwrite_file(tmp_path: Path):
+    book = CSVBook([data / "data_3x4.csv", data / "data_3x6.tsv"])
+    into = tmp_path / "foo"
+    into.write_text("foobar")
+
+    with pytest.raises(RuntimeError) as error:
+        for p, r, v in book.stream_copy(into):
+            pass
+
+    assert str(error.value) == f"can't write csvs to {into} because it's a file"
+
+
+@pytest.mark.parametrize(
+    "kind, path",
+    [
+        (CSVBook, [data / "data_3x4.csv", data / "data_3x6.tsv"]),
+        (XLSXBook, data / "data.xlsx"),
+    ],
+)
+def test_stream_rows(kind, path):
+    book = kind(path)
+
+    copy = {}
+
+    # scan each row
+    for page in book:
+        copy[page.name] = []
+        for idx, row in page.stream_rows():
+            assert idx == len(copy[page.name])
+            copy[page.name].append([str(c) for c in row])
+
+    assert copy == {
+        "data_3x4": data_3x4,
+        "data_3x6": data_3x6,
+    }
 
 
 def test_non_file(tmp_path: Path):
@@ -178,7 +229,10 @@ def test_non_file(tmp_path: Path):
         XLSXBook(tmp_path / "foo.xlsx")
     assert f"xlsx file not found {tmp_path}/foo.xlsx" == str(error.value)
     with pytest.raises(RuntimeError) as error:
-        XLSXBook.copy(tmp_path / "bar.xlsx", tmp_path / "foo.xlsx")
+        for p, r, v in XLSXBook(tmp_path / "bar.xlsx").stream_copy(
+            tmp_path / "foo.xlsx"
+        ):
+            pass
     assert f"xlsx file not found {tmp_path}/bar.xlsx" == str(error.value)
 
 
@@ -190,20 +244,6 @@ def test_csv_file():
     assert f"need a dir or list of files, but, got a file {path=}" == str(error.value)
 
 
-def test_xlsx_multi_page():
-    book = XLSXBook(data / "data.xlsx")
-    with (
-        pytest.raises(RuntimeError) as error,
-        book["data_3x4"] as page1,
-        book["data_3x6"] as page2,
-    ):
-        pytest.fail("shouldn't work" + page1 + page2)
-    assert (
-        "only one page can be open at a time self._open='data_3x4' name='data_3x6'"
-        == str(error.value)
-    )
-
-
 def test_xlsx_name_cap():
     book = XLSXBook(data / "data.xlsx")
     long_name = "name which exceeds 31 characters"
@@ -213,16 +253,3 @@ def test_xlsx_name_cap():
     ):
         raise RuntimeError(f"{long_name=} should have failed {page.name=}")
     assert "excel limits you to 31 character page names" == str(error.value)
-
-
-def test_csv_multi_page():
-    book = CSVBook(data)
-    with (
-        pytest.raises(RuntimeError) as error,
-        book["data_3x4"] as page1,
-        book["data_3x4"] as page2,
-    ):
-        pytest.fail("shouldn't work" + page1 + page2)
-    assert "only one copy of a page can be open at once name='data_3x4'" == str(
-        error.value
-    )

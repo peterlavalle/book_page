@@ -1,69 +1,67 @@
 import contextlib
 import csv
-import shutil
+from collections.abc import Generator as gen
 from pathlib import Path
 
 from book_page.book import Book, Page
 
 
 class CSVBook(Book):
-    @classmethod
-    def copy(cls, src: str | Path | list[Path], out: str | Path):
-        src = csv_files(src)
-
-        if isinstance(out, str):
-            out = Path(out)
-
-        for s in src:
-            shutil.copy2(s, out / s.name)
-
-        return CSVBook([out / s.name for s in src])
-
     def __init__(self, path: str | Path | list[Path]):
-
-        path = csv_files(path)
-
-        self._page_files = {page.stem.lower(): page for page in path}
-        self._page_cache = {}
+        self._page_files = {page.stem.lower(): page for page in csv_files(path)}
 
     def keys(self):
         return self._page_files.keys()
 
     @contextlib.contextmanager
     def __getitem__(self, name):
-        if name in self._page_cache:
-            raise RuntimeError(f"only one copy of a page can be open at once {name=}")
-
-        file = self._page_files[name]
-
-        self._page_cache[name] = [
-            line
-            for line in csv.reader(
-                file.open(), delimiter="\t" if file.name.endswith(".tsv") else ","
-            )
-        ]
 
         class CSVPage(Page):
-            def cell_get(self, r: int, c: int):
-                return self._page[r][c]
+            def stream_rows(self) -> gen[tuple[int, list[str]]]:
+                assert isinstance(self._page, Path)
+                with self._page.open() as file:
+                    for row, line in enumerate(
+                        csv.reader(
+                            file,
+                            delimiter="\t" if file.name.endswith(".tsv") else ",",
+                        )
+                    ):
+                        # normalize and yield the row
 
-            def cell_set(self, r: int, c: int, v: any):
-                self._page[r][c] = v
+                        yield (
+                            row,
+                            [
+                                cell if cell else None
+                                for cell in [
+                                    cell.strip() if isinstance(cell, str) else cell
+                                    for cell in line
+                                ]
+                            ],
+                        )
 
-            def get_rows(self) -> int:
-                return len(self._page)
+        assert isinstance(self._page_files[name], Path)
+        yield CSVPage(name, self._page_files[name])
 
-            def get_columns(self) -> int:
-                return max([len(row) for row in self._page])
+    def stream_copy(self, into: str | Path) -> gen[tuple[str, int, list[str]]]:
+        if not isinstance(into, Path):
+            into = Path(into)
 
-        page = CSVPage(name, self._page_cache[name])
-        yield page
-        if page._changed:
-            with file.open("w") as stream:
-                csv.writer(
-                    stream, delimiter="\t" if file.name.endswith(".tsv") else ","
-                ).writerows(self._page_cache[name])
-        self._page_cache.pop(name)
+        if into.is_file():
+            raise RuntimeError(f"can't write csvs to {into} because it's a file")
+
+        into.mkdir(parents=True, exist_ok=True)
+
+        for page in self:
+            name = page.name
+            file = self._page_files[name].name
+            with (into / file).open("w") as data:
+                writer = csv.writer(
+                    data, delimiter="\t" if file.endswith(".tsv") else ","
+                )
+
+                for row, cell in page.stream_rows():
+                    yield name, row, cell
+                    writer.writerow(cell)
 
 
 def csv_files(path: str | Path | list[Path]):
