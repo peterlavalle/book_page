@@ -31,7 +31,7 @@ class CSVBook(Book):
                             cell.strip() if isinstance(cell, str) else cell
                             for cell in line
                         ]
-                        
+
                         # convert empty cells to None
                         line = [cell if cell else None for cell in line]
 

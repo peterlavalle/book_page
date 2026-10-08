@@ -35,7 +35,7 @@ class XLSXBook(Book):
 
             for r in range(page.max_row):
                 data = [page.cell(r + 1, c + 1).value for c in range(page.max_column)]
-                yield page, r, data
+                yield name, r, data
                 for c, val in enumerate(data):
                     page.cell(r + 1, c + 1).value = val
         the_copy.save(into)
