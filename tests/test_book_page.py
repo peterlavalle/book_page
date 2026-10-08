@@ -5,7 +5,7 @@ import pytest
 
 from book_page import Book, CSVBook, XLSXBook, book_open
 
-data = Path(__file__).parent / "data" / __name__
+test_data = Path(__file__).parent / "data" / __name__
 
 
 data_3x4 = [
@@ -24,15 +24,15 @@ data_3x6 = [
 
 def test_csv_name_collision():
     with pytest.raises(ValueError) as error:
-        CSVBook([data / "data_3x4.csv", data / "data_3x4.tsv"])
+        CSVBook([test_data / "data_3x4.csv", test_data / "data_3x4.tsv"])
     assert (
         textwrap.dedent(
             f"""
             the following csv files have name collisions
                 data_3x4
-                    {data}/data_3x4.csv
+                    {test_data}/data_3x4.csv
                 data_3x4
-                    {data}/data_3x4.tsv
+                    {test_data}/data_3x4.tsv
             """
         ).strip()
         == str(error.value).strip()
@@ -42,8 +42,8 @@ def test_csv_name_collision():
 @pytest.mark.parametrize(
     "kind, path",
     [
-        (CSVBook, data),
-        (XLSXBook, data / "data.xlsx"),
+        (CSVBook, test_data),
+        (XLSXBook, test_data / "data.xlsx"),
     ],
 )
 @pytest.mark.parametrize(
@@ -86,8 +86,8 @@ def test_read_data(kind, path, to_str: bool, generic: bool, name, data):
 @pytest.mark.parametrize(
     "kind, path",
     [
-        (CSVBook, data),
-        (XLSXBook, data / "data.xlsx"),
+        (CSVBook, test_data),
+        (XLSXBook, test_data / "data.xlsx"),
     ],
 )
 @pytest.mark.parametrize(
@@ -177,7 +177,7 @@ def page_check(page, name, data):
 
 
 def test_stream_csv_rows():
-    book = CSVBook([data / "data_3x4.csv", data / "data_3x6.tsv"])
+    book = CSVBook([test_data / "data_3x4.csv", test_data / "data_3x6.tsv"])
 
     copy = []
     with book["data_3x4"] as page:
@@ -188,7 +188,7 @@ def test_stream_csv_rows():
 
 
 def test_csv_stream_wont_overwrite_file(tmp_path: Path):
-    book = CSVBook([data / "data_3x4.csv", data / "data_3x6.tsv"])
+    book = CSVBook([test_data / "data_3x4.csv", test_data / "data_3x6.tsv"])
     into = tmp_path / "foo"
     into.write_text("foobar")
 
@@ -202,8 +202,8 @@ def test_csv_stream_wont_overwrite_file(tmp_path: Path):
 @pytest.mark.parametrize(
     "kind, path",
     [
-        (CSVBook, [data / "data_3x4.csv", data / "data_3x6.tsv"]),
-        (XLSXBook, data / "data.xlsx"),
+        (CSVBook, [test_data / "data_3x4.csv", test_data / "data_3x6.tsv"]),
+        (XLSXBook, test_data / "data.xlsx"),
     ],
 )
 def test_stream_rows(kind, path):
@@ -237,7 +237,7 @@ def test_non_file(tmp_path: Path):
 
 
 def test_csv_file():
-    path = data / "data.xlsx"
+    path = test_data / "data.xlsx"
 
     with pytest.raises(RuntimeError) as error:
         CSVBook(path)
@@ -245,7 +245,7 @@ def test_csv_file():
 
 
 def test_xlsx_name_cap():
-    book = XLSXBook(data / "data.xlsx")
+    book = XLSXBook(test_data / "data.xlsx")
     long_name = "name which exceeds 31 characters"
     with (
         pytest.raises(RuntimeError) as error,
