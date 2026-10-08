@@ -26,17 +26,26 @@ class CSVBook(Book):
                             delimiter="\t" if file.name.endswith(".tsv") else ",",
                         )
                     ):
-                        # normalize and yield the row
+                        # strip cell strings
+                        line = [
+                            cell.strip() if isinstance(cell, str) else cell
+                            for cell in line
+                        ]
+                        
+                        # convert empty cells to None
+                        line = [cell if cell else None for cell in line]
+
+                        # strip bom
+                        if (
+                            row == 0
+                            and isinstance(line[0], str)
+                            and "\ufeff" == line[0][:1]
+                        ):
+                            line[0] = line[0][1:]
 
                         yield (
                             row,
-                            [
-                                cell if cell else None
-                                for cell in [
-                                    cell.strip() if isinstance(cell, str) else cell
-                                    for cell in line
-                                ]
-                            ],
+                            line,
                         )
 
         assert isinstance(self._page_files[name], Path)
