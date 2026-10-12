@@ -37,7 +37,8 @@ class XLSXBook(Book):
                 data = [page.cell(r + 1, c + 1).value for c in range(page.max_column)]
                 yield name, r, data
                 for c, val in enumerate(data):
-                    page.cell(r + 1, c + 1).value = val
+                    if val != page.cell(r + 1, c + 1).value:
+                        page.cell(r + 1, c + 1).value = val
         the_copy.save(into)
 
     @contextlib.contextmanager
